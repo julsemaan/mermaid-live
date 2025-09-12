@@ -1,8 +1,45 @@
 #!/bin/bash
 # mermaid-live-zoom.sh
 
+# Default values
 PORT=18000
+INPUT_DIR="."
 OUT_DIR="outs"
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -p|--port)
+            PORT="$2"
+            shift
+            shift
+            ;;
+        -i|--input)
+            INPUT_DIR="$2"
+            shift
+            shift
+            ;;
+        -o|--output)
+            OUT_DIR="$2"
+            shift
+            shift
+            ;;
+        -h|--help)
+            echo "Usage: $0 [OPTIONS]"
+            echo "Options:"
+            echo "  -p, --port PORT      Port to run the server on (default: 18000)"
+            echo "  -i, --input DIR      Input directory with mermaid files (default: current directory)"
+            echo "  -o, --output DIR     Output directory for generated SVGs (default: outs)"
+            echo "  -h, --help           Show this help message"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use -h or --help for usage information"
+            exit 1
+            ;;
+    esac
+done
 
 # Create directories and config
 mkdir -p "$OUT_DIR"
@@ -519,9 +556,9 @@ process_file() {
 
 # Initial processing of all files
 process_all_files() {
-    echo "Processing mermaid files..."
+    echo "Processing mermaid files in $INPUT_DIR..."
     for ext in mermaid mmd; do
-        for file in *.$ext; do
+        for file in "$INPUT_DIR"/*.$ext; do
             if [ -f "$file" ]; then
                 process_file "$file"
             fi
@@ -533,10 +570,20 @@ process_all_files() {
 # Set up cleanup function
 cleanup() {
     echo -e "\nShutting down..."
-    # Kill all background processes started by this script
-    pkill -P $$ 2>/dev/null
-    # Kill the Python server specifically
-    kill $(lsof -t -i:$PORT) 2>/dev/null || true
+    # Kill only the specific processes we started
+    if [ -n "$WATCHER_PID" ]; then
+        kill "$WATCHER_PID" 2>/dev/null || true
+    fi
+    
+    if [ -n "$SERVER_PID" ]; then
+        kill "$SERVER_PID" 2>/dev/null || true
+    fi
+    
+    # Kill processes using the port (more targeted approach)
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -ti:$PORT | xargs kill -9 2>/dev/null || true
+    fi
+    
     # Remove config file
     rm -f puppeteer-config.json
     exit 0
@@ -548,14 +595,14 @@ trap cleanup SIGINT SIGTERM
 # Initial processing
 process_all_files
 
-# Start file watcher in background using inotifywait
+# Start file watcher in background
 if command -v inotifywait >/dev/null 2>&1; then
-    echo "Watching for file changes with inotifywait..."
+    echo "Watching for file changes in $INPUT_DIR with inotifywait..."
     (
         while true; do
-            inotifywait -e close_write -e moved_to -e create -q -r . --include '\.(mermaid|mmd)$'
+            inotifywait -e close_write -e moved_to -e create -q -r "$INPUT_DIR" --include '\.(mermaid|mmd)$'
             for ext in mermaid mmd; do
-                for file in *.$ext; do
+                for file in "$INPUT_DIR"/*.$ext; do
                     if [ -f "$file" ]; then
                         process_file "$file"
                     fi
