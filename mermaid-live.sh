@@ -58,6 +58,7 @@ generate_index() {
 <html>
 <head>
     <title>Mermaid Live Preview with Zoom</title>
+    <link rel="icon" type="image/x-icon" href="https://mermaid.js.org/favicon.ico">
     <style>
         body { 
             font-family: Arial, sans-serif; 
