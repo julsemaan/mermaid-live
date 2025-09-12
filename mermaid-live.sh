@@ -6,6 +6,8 @@ PORT=18000
 INPUT_DIR="."
 OUT_DIR="outs"
 
+PUPPETEER_CONFIG_PATH=$(mktemp /tmp/puppeteer_config.XXXXXX.json)
+
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -43,7 +45,7 @@ done
 
 # Create directories and config
 mkdir -p "$OUT_DIR"
-cat > puppeteer-config.json << 'EOF'
+cat > $PUPPETEER_CONFIG_PATH << 'EOF'
 {
   "args": ["--no-sandbox", "--disable-setuid-sandbox"]
 }
@@ -210,7 +212,7 @@ generate_index() {
 <body>
     <div class="header">
         <h1>Mermaid Diagrams Live Preview</h1>
-        <p>Port: $PORT • Use mouse wheel to zoom • Drag to pan</p>
+        <p>Port: $PORT - Use mouse wheel to zoom - Drag to pan</p>
     </div>
     
     <div class="global-controls">
@@ -547,7 +549,7 @@ process_file() {
     
     if [ "$current_mtime" -gt "$last_mtime" ]; then
         echo "Converting $file..."
-        mmdc -i "$file" -o "$output_file" --puppeteerConfigFile puppeteer-config.json
+        mmdc -i "$file" -o "$output_file" --puppeteerConfigFile $PUPPETEER_CONFIG_PATH
         if [ $? -eq 0 ]; then
             echo "$current_mtime" > "$OUT_DIR/.${basefile}.mtime"
         fi
@@ -585,7 +587,7 @@ cleanup() {
     fi
     
     # Remove config file
-    rm -f puppeteer-config.json
+    rm -f $PUPPETEER_CONFIG_PATH
     exit 0
 }
 
