@@ -1,5 +1,5 @@
 #!/bin/bash
-# mermaid-live-zoom.sh
+# mermaid-live.sh
 
 # Default values
 PORT=18000
