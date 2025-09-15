@@ -220,7 +220,7 @@ generate_index() {
         <div class="control-group">
             <span>Auto Refresh:</span>
             <span class="refresh-status refresh-on" id="refresh-status">
-                <span class="status-indicator status-on"></span>ENABLED (<span id="countdown">X</span>s)
+                <span class="status-indicator status-on"></span>ENABLED <!-- (<span id="countdown">X</span>s)-->
             </span>
             <button onclick="toggleAutoRefresh()" class="danger" id="toggle-refresh-btn">
                 Disable Auto-Refresh
