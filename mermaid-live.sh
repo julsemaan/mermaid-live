@@ -4,7 +4,12 @@
 # Default values
 PORT=18000
 INPUT_DIR="."
-OUT_DIR="$(mktemp -d mermaid-live-out.XXXXXX)"
+
+if [ -z "$OUT_DIR" ]; then
+  OUT_DIR="$(mktemp -d mermaid-live-out.XXXXXX)"
+fi
+
+echo "Output directory: $OUT_DIR"
 
 PUPPETEER_CONFIG_PATH=$(mktemp /tmp/puppeteer_config.XXXXXX.json)
 
