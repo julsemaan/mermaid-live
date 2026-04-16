@@ -1,6 +1,6 @@
 import { access, mkdir, stat } from "node:fs/promises";
 import { constants } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import type { DiagramSource } from "../../domain/Diagram.js";
 
 export const ensureDirectory = async (targetPath: string): Promise<void> => {
@@ -21,8 +21,19 @@ export const resolveOutputPathForDiagram = async (
   outputRootPath: string,
   source: DiagramSource
 ): Promise<string> => {
-  const normalizedRelativePath = source.relativePath.replace(/\.(mmd|mermaid)$/i, ".svg");
-  const outputPath = join(outputRootPath, normalizedRelativePath);
+  const outputPath = resolveOutputPathForRelativeSourcePath(outputRootPath, source.relativePath);
   await ensureDirectory(dirname(outputPath));
   return outputPath;
+};
+
+export const resolveOutputPathForRelativeSourcePath = (
+  outputRootPath: string,
+  relativeSourcePath: string
+): string => {
+  const normalizedRelativePath = relativeSourcePath.replace(/\.(mmd|mermaid)$/i, ".svg");
+  return join(outputRootPath, normalizedRelativePath);
+};
+
+export const relativePathFromRoot = (rootPath: string, absolutePath: string): string => {
+  return relative(resolve(rootPath), resolve(absolutePath));
 };

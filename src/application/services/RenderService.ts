@@ -8,6 +8,10 @@ export interface Renderer {
 export class RenderService {
   public constructor(private readonly renderer: Renderer) {}
 
+  public async renderOne(source: DiagramSource, outputPath: string): Promise<RenderResult> {
+    return this.renderer.render(source, outputPath);
+  }
+
   public async renderAll(
     sources: DiagramSource[],
     resolveOutputPath: (source: DiagramSource) => Promise<string>

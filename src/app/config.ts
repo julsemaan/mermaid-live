@@ -11,6 +11,8 @@ export interface RuntimeConfig {
   outputPath: string;
   port: number;
   logLevel: LogLevel;
+  watcherDebounceMs: number;
+  renderConcurrency: number;
 }
 
 export interface RawConfigInput {
@@ -18,6 +20,8 @@ export interface RawConfigInput {
   output?: string;
   port?: number;
   logLevel?: string;
+  watcherDebounceMs?: number;
+  renderConcurrency?: number;
 }
 
 const logLevelSchema = z.enum(["fatal", "error", "warn", "info", "debug", "trace"]);
@@ -26,10 +30,24 @@ const configSchema = z.object({
   input: z.string().min(1),
   output: z.string().min(1),
   port: z.number().int().min(1).max(65535),
-  logLevel: logLevelSchema
+  logLevel: logLevelSchema,
+  watcherDebounceMs: z.number().int().min(50).max(5_000),
+  renderConcurrency: z.number().int().min(1).max(8)
 });
 
 const parsePort = (value: string | undefined): number | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed)) {
+    return undefined;
+  }
+  return parsed;
+};
+
+const parseInteger = (value: string | undefined): number | undefined => {
   if (value === undefined) {
     return undefined;
   }
@@ -45,7 +63,9 @@ const environmentDefaults = (): RawConfigInput => ({
   input: process.env.INPUT_DIR,
   output: process.env.OUT_DIR,
   port: parsePort(process.env.PORT),
-  logLevel: process.env.LOG_LEVEL
+  logLevel: process.env.LOG_LEVEL,
+  watcherDebounceMs: parseInteger(process.env.WATCH_DEBOUNCE_MS),
+  renderConcurrency: parseInteger(process.env.RENDER_CONCURRENCY)
 });
 
 export const normalizeConfig = async (raw: RawConfigInput): Promise<RuntimeConfig> => {
@@ -55,12 +75,16 @@ export const normalizeConfig = async (raw: RawConfigInput): Promise<RuntimeConfi
   const output = raw.output ?? defaults.output ?? "./.mermaid-live-out";
   const port = raw.port ?? defaults.port ?? 18000;
   const logLevel = raw.logLevel ?? defaults.logLevel ?? "info";
+  const watcherDebounceMs = raw.watcherDebounceMs ?? defaults.watcherDebounceMs ?? 300;
+  const renderConcurrency = raw.renderConcurrency ?? defaults.renderConcurrency ?? 1;
 
   const parsed = configSchema.safeParse({
     input,
     output,
     port,
-    logLevel
+    logLevel,
+    watcherDebounceMs,
+    renderConcurrency
   });
 
   if (!parsed.success) {
@@ -73,7 +97,9 @@ export const normalizeConfig = async (raw: RawConfigInput): Promise<RuntimeConfi
     inputPath: toAbsolutePath(parsed.data.input),
     outputPath: toAbsolutePath(parsed.data.output),
     port: parsed.data.port,
-    logLevel: parsed.data.logLevel as LogLevel
+    logLevel: parsed.data.logLevel as LogLevel,
+    watcherDebounceMs: parsed.data.watcherDebounceMs,
+    renderConcurrency: parsed.data.renderConcurrency
   };
 
   await ensureReadableDirectory(normalized.inputPath).catch((error: unknown) => {

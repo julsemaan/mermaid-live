@@ -75,3 +75,11 @@ export const createRenderFailedEvent = (
   error,
   durationMs
 });
+
+export const createDiagramRemovedEvent = (
+  diagramId: DiagramId,
+  sourcePath: string
+): DiagramRemovedEvent => ({
+  ...nextBase("DiagramRemoved", diagramId),
+  sourcePath
+});
