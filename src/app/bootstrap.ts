@@ -3,6 +3,7 @@ import { EventIngestionService } from "../application/services/EventIngestionSer
 import { ManifestService } from "../application/services/ManifestService.js";
 import { RenderService } from "../application/services/RenderService.js";
 import { RenderQueueService } from "../application/services/RenderQueueService.js";
+import { RealtimeEventBus } from "../application/services/RealtimeEventBus.js";
 import { normalizeConfig, type RawConfigInput } from "./config.js";
 import {
   createDiagramDiscoveredEvent,
@@ -15,6 +16,7 @@ import type { QueueEvent } from "../domain/QueueEvent.js";
 import { SourceWatcher } from "../infrastructure/fs/SourceWatcher.js";
 import { createLogger } from "../infrastructure/logging/logger.js";
 import { MermaidCliRenderer } from "../infrastructure/mermaid/MermaidCliRenderer.js";
+import { ApiServer } from "../interfaces/http/ApiServer.js";
 import {
   relativePathFromRoot,
   resolveOutputPathForDiagram,
@@ -60,6 +62,13 @@ export const bootstrap = async (rawConfig: RawConfigInput): Promise<number> => {
   const catalogService = new DiagramCatalogService();
   const renderService = new RenderService(new MermaidCliRenderer());
   const manifestService = new ManifestService(config.outputPath);
+  const realtimeEventBus = new RealtimeEventBus();
+  const apiServer = new ApiServer({
+    port: config.port,
+    logger,
+    manifestService,
+    realtimeEventBus
+  });
 
   let successCount = 0;
   let failureCount = 0;
@@ -83,7 +92,10 @@ export const bootstrap = async (rawConfig: RawConfigInput): Promise<number> => {
         config.outputPath,
         relativePath
       );
-      await manifestService.removeDiagram(event.diagramId, fallbackArtifactPath);
+      const removedEntry = await manifestService.removeDiagram(
+        event.diagramId,
+        fallbackArtifactPath
+      );
 
       const removedEvent = createDiagramRemovedEvent(event.diagramId, event.sourcePath);
       logger.info(
@@ -96,6 +108,16 @@ export const bootstrap = async (rawConfig: RawConfigInput): Promise<number> => {
         },
         "Diagram removed"
       );
+
+      realtimeEventBus.publish({
+        type: "diagram.deleted",
+        payload: {
+          id: event.diagramId,
+          version: removedEntry?.version ?? "deleted",
+          updatedAt: new Date().toISOString(),
+          status: "deleted"
+        }
+      });
       return;
     }
 
@@ -106,11 +128,15 @@ export const bootstrap = async (rawConfig: RawConfigInput): Promise<number> => {
       }
 
       const outputPath = await resolveOutputPathForDiagram(config.outputPath, source);
+      const previousEntry = manifestService.getEntry(source.id);
       const result = await renderService.renderOne(source, outputPath);
 
       if (result.ok) {
         successCount += 1;
-        await manifestService.upsertRendered(result.source, result.artifact.outputPath);
+        const entry = await manifestService.upsertRendered(
+          result.source,
+          result.artifact.outputPath
+        );
         const renderedEvent = createDiagramRenderedEvent(
           result.source,
           result.artifact,
@@ -127,11 +153,25 @@ export const bootstrap = async (rawConfig: RawConfigInput): Promise<number> => {
           },
           "Diagram rendered"
         );
+
+        realtimeEventBus.publish({
+          type: previousEntry ? "diagram.updated" : "diagram.created",
+          payload: {
+            id: entry.id,
+            version: entry.version,
+            updatedAt: entry.updatedAt,
+            status: entry.status
+          }
+        });
         return;
       }
 
       failureCount += 1;
-      await manifestService.markFailed(source, outputPath, toErrorSummary(result.error));
+      const entry = await manifestService.markFailed(
+        source,
+        outputPath,
+        toErrorSummary(result.error)
+      );
       const failedEvent = createRenderFailedEvent(result.source, result.error, result.durationMs);
       logger.error(
         {
@@ -143,6 +183,17 @@ export const bootstrap = async (rawConfig: RawConfigInput): Promise<number> => {
         },
         "Diagram render failed"
       );
+
+      realtimeEventBus.publish({
+        type: "diagram.failed",
+        payload: {
+          id: entry.id,
+          version: entry.version,
+          updatedAt: entry.updatedAt,
+          status: entry.status,
+          reason: entry.lastError
+        }
+      });
     } catch (error) {
       failureCount += 1;
       logger.error(
@@ -224,14 +275,16 @@ export const bootstrap = async (rawConfig: RawConfigInput): Promise<number> => {
   await manifestService.persist();
 
   await watcher.start();
+  await apiServer.start();
 
   logger.info(
     {
       renderedCount: successCount,
       failureCount,
-      manifestPath: manifestService.getManifestPath()
+      manifestPath: manifestService.getManifestPath(),
+      apiBaseUrl: `http://localhost:${config.port}/api`
     },
-    "Initial render and manifest sync complete"
+    "Initial render, manifest sync, and API startup complete"
   );
 
   logger.info("Watching for incremental changes");
@@ -241,6 +294,7 @@ export const bootstrap = async (rawConfig: RawConfigInput): Promise<number> => {
 
   ingestionService.flushNow();
   await queueService.waitForIdle();
+  await apiServer.close();
   await watcher.close();
 
   logger.info(

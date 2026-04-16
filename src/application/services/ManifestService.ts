@@ -37,25 +37,39 @@ export class ManifestService {
     return this.entries.get(diagramId);
   }
 
+  public listEntries(): DiagramManifestEntry[] {
+    return [...this.entries.values()].sort((left, right) =>
+      left.sourcePath.localeCompare(right.sourcePath)
+    );
+  }
+
   public async persist(): Promise<void> {
     await this.persistAtomically();
   }
 
-  public async upsertRendered(source: DiagramSource, outputPath: string): Promise<void> {
-    this.upsertEntry({ source, outputPath, status: "ready" });
+  public async upsertRendered(
+    source: DiagramSource,
+    outputPath: string
+  ): Promise<DiagramManifestEntry> {
+    const entry = this.upsertEntry({ source, outputPath, status: "ready" });
     await this.persistAtomically();
+    return entry;
   }
 
   public async markFailed(
     source: DiagramSource,
     outputPath: string,
     lastError: string
-  ): Promise<void> {
-    this.upsertEntry({ source, outputPath, status: "failed", lastError });
+  ): Promise<DiagramManifestEntry> {
+    const entry = this.upsertEntry({ source, outputPath, status: "failed", lastError });
     await this.persistAtomically();
+    return entry;
   }
 
-  public async removeDiagram(diagramId: string, fallbackArtifactPath?: string): Promise<void> {
+  public async removeDiagram(
+    diagramId: string,
+    fallbackArtifactPath?: string
+  ): Promise<DiagramManifestEntry | undefined> {
     const previous = this.entries.get(diagramId);
     this.entries.delete(diagramId);
 
@@ -65,9 +79,10 @@ export class ManifestService {
     }
 
     await this.persistAtomically();
+    return previous;
   }
 
-  private upsertEntry(input: UpsertInput): void {
+  private upsertEntry(input: UpsertInput): DiagramManifestEntry {
     const version = `${Math.trunc(input.source.metadata.sourceMtimeMs)}-${input.source.metadata.sourceSizeBytes}`;
     const previous = this.entries.get(input.source.id);
     const entry: DiagramManifestEntry = {
@@ -85,6 +100,7 @@ export class ManifestService {
     }
 
     this.entries.set(input.source.id, entry);
+    return entry;
   }
 
   private async persistAtomically(): Promise<void> {
