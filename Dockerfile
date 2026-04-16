@@ -1,16 +1,21 @@
-FROM ubuntu:24.04
+FROM node:22-bookworm-slim AS builder
 
-# Set environment variables to avoid interactive prompts
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY tsconfig.json ./
+COPY src ./src
+
+RUN npm run build
+
+FROM node:22-bookworm-slim
+
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install only the necessary dependencies
-RUN apt-get update && apt-get install -y \
-    wget \
-    curl \
-    npm \
-    nodejs \
-    python3 \
-    inotify-tools \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
     libnss3 \
     libatk-bridge2.0-0 \
     libatk1.0-0 \
@@ -25,23 +30,20 @@ RUN apt-get update && apt-get install -y \
     libpangocairo-1.0-0 \
     libpango-1.0-0 \
     libcairo2 \
-    libasound2t64 \
+    libasound2 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install mermaid-cli globally
-RUN npm install -g @mermaid-js/mermaid-cli
-
-# Create app directory
 WORKDIR /app
 
-# Copy the mermaid-live.sh script from local filesystem
-COPY mermaid-live.sh .
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force
 
-# Make script executable
-RUN chmod +x mermaid-live.sh
+COPY --from=builder /app/dist ./dist
 
-# Expose the correct port (18000 as used in the script)
-EXPOSE 18000
+ENV INPUT_DIR=/diagrams
+ENV PORT=18000
+ENV LOG_LEVEL=info
 
-# Set entrypoint with working directory configuration
-ENTRYPOINT ["./mermaid-live.sh", "-i", "/diagrams"]
+VOLUME ["/diagrams"]
+
+ENTRYPOINT ["node", "dist/index.js"]
