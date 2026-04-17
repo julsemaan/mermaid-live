@@ -9,6 +9,7 @@ export type DiagramRealtimeEventType =
 export type DiagramRealtimeStatus = DiagramManifestStatus | "deleted";
 
 export interface DiagramRealtimePayload {
+  eventId?: string;
   id: string;
   version: string;
   updatedAt: string;

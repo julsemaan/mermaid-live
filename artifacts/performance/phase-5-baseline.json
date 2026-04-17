@@ -1,0 +1,35 @@
+{
+  "generatedAt": "2026-04-17T12:59:35.244Z",
+  "renderLatencyByTier": {
+    "small": {
+      "avgMs": 0.41,
+      "maxMs": 0.69
+    },
+    "medium": {
+      "avgMs": 0.33,
+      "maxMs": 0.98
+    },
+    "large": {
+      "avgMs": 0.28,
+      "maxMs": 0.39
+    }
+  },
+  "apiLatencyByDiagramCount": {
+    "100": {
+      "avgMs": 1.81,
+      "p95Ms": 2.22
+    },
+    "500": {
+      "avgMs": 1.56,
+      "p95Ms": 2.59
+    },
+    "1000": {
+      "avgMs": 2.16,
+      "p95Ms": 2.99
+    }
+  },
+  "idleNetworkQuiet": {
+    "sampleWindowMs": 2500,
+    "unsolicitedEventBlocks": 0
+  }
+}

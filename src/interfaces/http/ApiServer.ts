@@ -18,7 +18,38 @@ interface ApiServerOptions {
   logger: Logger;
   manifestService: ManifestService;
   realtimeEventBus: RealtimeEventBus;
+  getHealthSnapshot: () => ApiHealthSnapshot;
 }
+
+interface ApiHealthSnapshot {
+  startedAt: string;
+  uptimeMs: number;
+  renderSuccessCount: number;
+  renderFailureCount: number;
+  queueDepth: number;
+}
+
+const metricsBody = (health: ApiHealthSnapshot, sseClients: number): string => {
+  const lines = [
+    "# HELP mermaid_live_renders_total Total completed renders",
+    "# TYPE mermaid_live_renders_total counter",
+    `mermaid_live_renders_total ${health.renderSuccessCount}`,
+    "# HELP mermaid_live_render_failures_total Total render failures",
+    "# TYPE mermaid_live_render_failures_total counter",
+    `mermaid_live_render_failures_total ${health.renderFailureCount}`,
+    "# HELP mermaid_live_queue_depth Current render queue depth",
+    "# TYPE mermaid_live_queue_depth gauge",
+    `mermaid_live_queue_depth ${health.queueDepth}`,
+    "# HELP mermaid_live_sse_clients Current SSE clients",
+    "# TYPE mermaid_live_sse_clients gauge",
+    `mermaid_live_sse_clients ${sseClients}`,
+    "# HELP mermaid_live_uptime_seconds Runtime uptime in seconds",
+    "# TYPE mermaid_live_uptime_seconds gauge",
+    `mermaid_live_uptime_seconds ${Math.floor(health.uptimeMs / 1000)}`
+  ];
+
+  return `${lines.join("\n")}\n`;
+};
 
 interface SseClient {
   response: ServerResponse;
@@ -115,6 +146,7 @@ export class ApiServer {
   private readonly logger: Logger;
   private readonly manifestService: ManifestService;
   private readonly realtimeEventBus: RealtimeEventBus;
+  private readonly getHealthSnapshot: () => ApiHealthSnapshot;
   private readonly sseClients = new Set<SseClient>();
   private readonly unsubscribeRealtime: () => void;
   private server: Server | null = null;
@@ -124,6 +156,7 @@ export class ApiServer {
     this.logger = options.logger;
     this.manifestService = options.manifestService;
     this.realtimeEventBus = options.realtimeEventBus;
+    this.getHealthSnapshot = options.getHealthSnapshot;
 
     this.unsubscribeRealtime = this.realtimeEventBus.subscribe((event) => {
       this.broadcastSseEvent(event);
@@ -267,6 +300,16 @@ export class ApiServer {
 
     if (context.pathname === "/api/events") {
       this.handleEventsStream(response);
+      return;
+    }
+
+    if (context.pathname === "/api/health") {
+      this.handleHealth(response);
+      return;
+    }
+
+    if (context.pathname === "/api/metrics") {
+      this.handleMetrics(response);
       return;
     }
 
@@ -466,9 +509,38 @@ export class ApiServer {
     response.on("error", cleanup);
   }
 
+  private handleHealth(response: ServerResponse): void {
+    const health = this.getHealthSnapshot();
+    writeJson(
+      response,
+      200,
+      {
+        status: "ok",
+        health: {
+          ...health,
+          sseClients: this.sseClients.size
+        }
+      },
+      withCorsHeaders({})
+    );
+  }
+
+  private handleMetrics(response: ServerResponse): void {
+    const body = metricsBody(this.getHealthSnapshot(), this.sseClients.size);
+    response.writeHead(
+      200,
+      withCorsHeaders({
+        "content-type": "text/plain; version=0.0.4; charset=utf-8",
+        "content-length": Buffer.byteLength(body).toString(),
+        "cache-control": "no-store"
+      })
+    );
+    response.end(body);
+  }
+
   private broadcastSseEvent(event: DiagramRealtimeEvent): void {
     const payload = JSON.stringify(event.payload);
-    const eventBlock = `event: ${event.type}\ndata: ${payload}\n\n`;
+    const eventBlock = `${event.payload.eventId ? `id: ${event.payload.eventId}\n` : ""}event: ${event.type}\ndata: ${payload}\n\n`;
     for (const client of this.sseClients) {
       client.response.write(eventBlock);
     }

@@ -63,12 +63,8 @@ export const bootstrap = async (rawConfig: RawConfigInput): Promise<number> => {
   const renderService = new RenderService(new MermaidCliRenderer());
   const manifestService = new ManifestService(config.outputPath);
   const realtimeEventBus = new RealtimeEventBus();
-  const apiServer = new ApiServer({
-    port: config.port,
-    logger,
-    manifestService,
-    realtimeEventBus
-  });
+  const runtimeStartedAtMs = Date.now();
+  const runtimeStartedAt = new Date(runtimeStartedAtMs).toISOString();
 
   let successCount = 0;
   let failureCount = 0;
@@ -112,6 +108,7 @@ export const bootstrap = async (rawConfig: RawConfigInput): Promise<number> => {
       realtimeEventBus.publish({
         type: "diagram.deleted",
         payload: {
+          eventId: removedEvent.eventId,
           id: event.diagramId,
           version: removedEntry?.version ?? "deleted",
           updatedAt: new Date().toISOString(),
@@ -157,6 +154,7 @@ export const bootstrap = async (rawConfig: RawConfigInput): Promise<number> => {
         realtimeEventBus.publish({
           type: previousEntry ? "diagram.updated" : "diagram.created",
           payload: {
+            eventId: renderedEvent.eventId,
             id: entry.id,
             version: entry.version,
             updatedAt: entry.updatedAt,
@@ -187,6 +185,7 @@ export const bootstrap = async (rawConfig: RawConfigInput): Promise<number> => {
       realtimeEventBus.publish({
         type: "diagram.failed",
         payload: {
+          eventId: failedEvent.eventId,
           id: entry.id,
           version: entry.version,
           updatedAt: entry.updatedAt,
@@ -210,6 +209,20 @@ export const bootstrap = async (rawConfig: RawConfigInput): Promise<number> => {
   const queueService = new RenderQueueService({
     concurrency: config.renderConcurrency,
     handleEvent: handleQueueEvent
+  });
+
+  const apiServer = new ApiServer({
+    port: config.port,
+    logger,
+    manifestService,
+    realtimeEventBus,
+    getHealthSnapshot: () => ({
+      startedAt: runtimeStartedAt,
+      uptimeMs: Date.now() - runtimeStartedAtMs,
+      renderSuccessCount: successCount,
+      renderFailureCount: failureCount,
+      queueDepth: queueService.getQueueDepth()
+    })
   });
 
   const ingestionService = new EventIngestionService({

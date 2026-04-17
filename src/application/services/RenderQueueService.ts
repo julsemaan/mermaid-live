@@ -42,6 +42,10 @@ export class RenderQueueService {
     });
   }
 
+  public getQueueDepth(): number {
+    return this.pendingByDiagram.size + this.runningCount;
+  }
+
   private drain(): void {
     while (this.runningCount < this.concurrency) {
       const nextEvent = this.takeNextEvent();
