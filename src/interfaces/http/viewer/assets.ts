@@ -251,6 +251,16 @@ body {
   box-shadow: var(--shadow);
   padding: 0.7rem;
   min-height: 290px;
+  cursor: pointer;
+}
+
+.diagram-card:hover {
+  border-color: var(--line-strong);
+}
+
+.diagram-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .card-title {
@@ -716,10 +726,40 @@ export const viewerJs = String.raw`(function () {
     return element;
   }
 
+  function shouldIgnoreCardNavigation(target) {
+    if (!(target instanceof Element)) {
+      return false;
+    }
+    return Boolean(target.closest("a,button,input,textarea,select"));
+  }
+
   function createCard(diagram) {
     var card = document.createElement("section");
     card.className = "diagram-card";
     card.setAttribute("data-card-id", diagram.id);
+    card.setAttribute("tabindex", "0");
+
+    var openDiagram = function () {
+      navigate("/diagram/" + encodeURIComponent(diagram.id));
+    };
+
+    card.addEventListener("click", function (event) {
+      if (shouldIgnoreCardNavigation(event.target)) {
+        return;
+      }
+      openDiagram();
+    });
+
+    card.addEventListener("keydown", function (event) {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+      if (shouldIgnoreCardNavigation(event.target)) {
+        return;
+      }
+      event.preventDefault();
+      openDiagram();
+    });
 
     var title = document.createElement("div");
     title.className = "card-title";
