@@ -1,0 +1,14 @@
+stateDiagram-v2
+    [*] --> Anonymous
+
+    Anonymous --> Authenticating: login submitted
+    Authenticating --> Authenticated: token valid
+    Authenticating --> Anonymous: token invalid
+
+    Authenticated --> Refreshing: token nearing expiry
+    Refreshing --> Authenticated: refresh success
+    Refreshing --> Expired: refresh failed
+
+    Authenticated --> Expired: idle timeout
+    Expired --> Anonymous: logout complete
+    Expired --> Authenticating: re-login

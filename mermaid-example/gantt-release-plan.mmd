@@ -1,0 +1,18 @@
+gantt
+    title Q2 Release Plan
+    dateFormat  YYYY-MM-DD
+    axisFormat  %b %d
+    excludes    weekends
+
+    section Discovery
+    Product interviews      :done, d1, 2026-04-01, 4d
+    Scope definition        :done, d2, after d1, 3d
+
+    section Build
+    API implementation      :active, b1, 2026-04-09, 7d
+    Frontend integration    :b2, after b1, 6d
+    QA hardening            :b3, after b2, 4d
+
+    section Launch
+    Staging rollout         :l1, after b3, 2d
+    Production deploy       :milestone, l2, after l1, 1d

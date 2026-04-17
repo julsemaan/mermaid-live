@@ -1,0 +1,37 @@
+erDiagram
+    CUSTOMER ||--o{ TICKET : opens
+    AGENT ||--o{ TICKET : handles
+    TICKET ||--o{ MESSAGE : contains
+    TICKET }o--|| CATEGORY : classified_as
+
+    CUSTOMER {
+        string id
+        string email
+        string plan
+    }
+
+    AGENT {
+        string id
+        string name
+        string team
+    }
+
+    CATEGORY {
+        string id
+        string label
+        string priority
+    }
+
+    TICKET {
+        string id
+        string subject
+        string status
+        datetime created_at
+    }
+
+    MESSAGE {
+        string id
+        string author_type
+        text body
+        datetime sent_at
+    }

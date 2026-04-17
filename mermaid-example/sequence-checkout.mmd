@@ -1,0 +1,20 @@
+sequenceDiagram
+    autonumber
+    participant U as User
+    participant W as Web App
+    participant P as Payment API
+    participant E as Email Service
+
+    U->>W: Click "Pay now"
+    W->>P: Create payment intent
+    P-->>W: Intent created
+    W->>P: Confirm payment
+    alt Payment approved
+        P-->>W: Success
+        W->>E: Send receipt email
+        E-->>U: Receipt delivered
+        W-->>U: Show confirmation page
+    else Payment failed
+        P-->>W: Declined
+        W-->>U: Show retry options
+    end

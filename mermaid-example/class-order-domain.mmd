@@ -1,0 +1,32 @@
+classDiagram
+    class Customer {
+        +String id
+        +String email
+        +placeOrder(cart)
+    }
+
+    class Order {
+        +String id
+        +OrderStatus status
+        +Money total
+        +addItem(product, qty)
+        +markPaid()
+    }
+
+    class OrderItem {
+        +String sku
+        +int quantity
+        +Money unitPrice
+        +lineTotal()
+    }
+
+    class Payment {
+        +String provider
+        +String transactionId
+        +Money amount
+        +capture()
+    }
+
+    Customer "1" --> "0..*" Order : places
+    Order "1" *-- "1..*" OrderItem : contains
+    Order "1" o-- "0..1" Payment : settles
