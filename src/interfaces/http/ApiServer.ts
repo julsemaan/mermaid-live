@@ -7,6 +7,7 @@ import type { RealtimeEventBus } from "../../application/services/RealtimeEventB
 import type { DiagramRealtimeEvent } from "../../domain/realtime.js";
 import type { ApiErrorDto } from "./dtos.js";
 import { toDiagramDetailDto, toDiagramSummaryDto } from "./dtos.js";
+import { viewerCss, viewerHtml, viewerJs } from "./viewer/assets.js";
 
 const DIAGRAM_ID_PATTERN = /^[a-f0-9]{40}$/;
 const SSE_RETRY_MS = 1500;
@@ -54,6 +55,19 @@ const writeJson = (
     "content-type": "application/json; charset=utf-8",
     "content-length": Buffer.byteLength(body).toString(),
     ...extraHeaders
+  });
+  response.end(body);
+};
+
+const writeText = (
+  response: ServerResponse,
+  statusCode: number,
+  contentType: string,
+  body: string
+): void => {
+  response.writeHead(statusCode, {
+    "content-type": `${contentType}; charset=utf-8`,
+    "content-length": Buffer.byteLength(body).toString()
   });
   response.end(body);
 };
@@ -226,6 +240,26 @@ export class ApiServer {
       return;
     }
 
+    if (context.pathname === "/") {
+      this.handleViewerDocument(response);
+      return;
+    }
+
+    if (context.pathname === "/viewer.css") {
+      writeText(response, 200, "text/css", viewerCss);
+      return;
+    }
+
+    if (context.pathname === "/viewer.js") {
+      writeText(response, 200, "application/javascript", viewerJs);
+      return;
+    }
+
+    if (context.pathname.startsWith("/diagram/")) {
+      this.handleViewerDocument(response);
+      return;
+    }
+
     if (context.pathname === "/api/diagrams") {
       this.handleListDiagrams(request, response);
       return;
@@ -271,6 +305,10 @@ export class ApiServer {
     }
 
     writeApiError(response, 404, "not_found", "Route not found", context.requestId);
+  }
+
+  private handleViewerDocument(response: ServerResponse): void {
+    writeText(response, 200, "text/html", viewerHtml);
   }
 
   private handleListDiagrams(request: IncomingMessage, response: ServerResponse): void {
